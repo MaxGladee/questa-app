@@ -150,6 +150,18 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Пасхалка с Freedoom (public/doom/): 13 МБ, которые не меняются.
+  // Сохранены — берём из кэша и не качаем снова при каждом запуске, как
+  // было бы с «из кэша и следом обновить» ниже.
+  // Музыка игры (public/doom/music/) — мимо воркера: плеер просит её
+  // кусками (Range, ответ 206), а такие ответы в кэш не кладутся.
+  if (url.pathname.includes('/doom/music/')) return
+
+  if (url.pathname.includes('/doom/') && !url.pathname.endsWith('.html')) {
+    event.respondWith(fromCacheFirst(request))
+    return
+  }
+
   event.respondWith(fromCacheThenUpdate(request))
 })
 

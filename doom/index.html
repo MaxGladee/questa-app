@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>Questa: секретный уровень</title>
+  <!--
+    Пасхалка: тройное нажатие «Служебный экран» в Настройках у того, кто не
+    админ (src/screens/Settings.tsx), открывает эту страницу.
+
+    Движок — Chocolate Doom, собранный в WebAssembly (cloudflare/doom-wasm,
+    лицензия GPL-2.0, исходники: https://github.com/cloudflare/doom-wasm),
+    файлы doom.js и websockets-doom.wasm без изменений. Уровни — Freedoom
+    0.13.0 (лицензия BSD, FREEDOOM-COPYING.txt рядом): свободная замена
+    Doom, без чужой торговой марки. freedoom1.wad лежит сжатым (29 МБ →
+    10 МБ) и распаковывается здесь же, в браузере.
+
+    Всё грузится только по нажатию «Играть»: приложению Doom ничего не
+    стоит, пока его не открыли.
+
+    Приложение закреплено вертикально (manifest, обёртка Android), а играть
+    надо лёжа: в вертикальном положении страница поворачивает игру сама, на
+    90°, и телефон держат боком. Управление пальцами: слева джойстик (вперёд,
+    назад, повороты; до упора — бег), справа «огонь», «открыть», оружие,
+    меню. Нажатия уходят в движок как обычные клавиши (см. default.cfg ниже).
+  -->
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden;
+      font-family: -apple-system, system-ui, sans-serif; -webkit-user-select: none; user-select: none;
+      touch-action: none; overscroll-behavior: none; }
+
+    /* Сцена в горизонтальном виде. Телефон вертикально — поворачиваем её. */
+    #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+    @media (orientation: portrait) {
+      #stage { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw;
+        transform-origin: top left; transform: rotate(90deg); }
+    }
+
+    canvas#canvas { height: 100%; max-width: 100%; aspect-ratio: 4 / 3; background: #000;
+      image-rendering: pixelated; display: block; }
+
+    .hud { position: absolute; inset: 0; pointer-events: none; }
+    .hud > * { pointer-events: auto; }
+
+    /* Цвета приложения: фиолетовый акцент (#8769FF), как btn-primary. */
+    #stick { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: 18px; width: 150px; height: 150px;
+      border-radius: 50%; background: rgb(135 105 255 / .14); border: 2px solid rgb(167 143 255 / .45); }
+    #knob { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+      border-radius: 50%; background: linear-gradient(180deg, #9B82FF, #6E4FF6);
+      box-shadow: 0 6px 18px rgb(110 79 246 / .55); }
+
+    .btn { position: absolute; display: grid; place-items: center; border-radius: 50%;
+      background: rgb(135 105 255 / .22); border: 2px solid rgb(167 143 255 / .55);
+      color: #fff; box-shadow: 0 4px 14px rgb(110 79 246 / .35); }
+    .btn svg { width: 46%; height: 46%; fill: none; stroke: currentColor; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round; }
+    .btn.on { background: rgb(135 105 255 / .6); }
+    #fire { right: max(24px, env(safe-area-inset-right)); bottom: 30px; width: 92px; height: 92px;
+      background: linear-gradient(180deg, rgb(155 130 255 / .85), rgb(110 79 246 / .85)); border-color: #A78FFF;
+      box-shadow: 0 8px 24px rgb(110 79 246 / .6); }
+    #fire.on { background: linear-gradient(180deg, #B6A2FF, #8769FF); }
+    /* Всё справа — столбиком над «огнём»: сбоку от него кнопка заезжала на картинку. */
+    #use { right: calc(max(24px, env(safe-area-inset-right)) + 13px); bottom: 136px; width: 66px; height: 66px; }
+    #weapon { right: calc(max(24px, env(safe-area-inset-right)) + 17px); bottom: 216px; width: 58px; height: 58px; }
+    .small { width: 46px; height: 46px; }
+    .small svg { width: 52%; height: 52%; }
+    #menu { left: max(18px, env(safe-area-inset-left)); top: 14px; }
+    #enter { left: calc(max(18px, env(safe-area-inset-left)) + 56px); top: 14px; }
+    #yes { left: calc(max(18px, env(safe-area-inset-left)) + 112px); top: 14px; }
+    #quit { right: max(18px, env(safe-area-inset-right)); top: 14px; }
+    #music { right: calc(max(18px, env(safe-area-inset-right)) + 56px); top: 14px; }
+    #music.off { opacity: .45; }
+
+    #start { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 14px; padding: 24px; text-align: center; background: #0F082C; }
+    #start h1 { margin: 0; font-size: 28px; letter-spacing: .02em; }
+    #start p { margin: 0; max-width: 460px; color: #9A93B8; font-size: 15px; line-height: 1.4; }
+    #start button { border: 0; border-radius: 999px; padding: 14px 34px; font-size: 18px; font-weight: 700;
+      color: #fff; background: linear-gradient(180deg, #9B82FF, #6E4FF6); }
+    #start a { color: #9A93B8; font-size: 12px; }
+    #status { color: #A78FFF; font-size: 15px; min-height: 20px; }
+    #reward { color: #FFC542; font-weight: 700; }
+    #banner { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); max-width: 70%;
+      padding: 10px 18px; border-radius: 16px; text-align: center; font-size: 16px; font-weight: 700;
+      background: linear-gradient(180deg, #9B82FF, #6E4FF6); box-shadow: 0 8px 24px rgb(110 79 246 / .6);
+      pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+
+    <div class="hud" id="hud" hidden>
+      <div id="stick"><div id="knob"></div></div>
+      <!-- Значки, а не подписи: слова «Огонь», «Открыть» вылезали за круги. -->
+      <div class="btn" id="fire" aria-label="Огонь">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>
+      </div>
+      <div class="btn" id="use" aria-label="Открыть">
+        <svg viewBox="0 0 24 24"><path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M3 21h18"/><circle cx="14.5" cy="12.5" r="1.1" fill="currentColor"/></svg>
+      </div>
+      <div class="btn" id="weapon" aria-label="Оружие">
+        <svg viewBox="0 0 24 24"><path d="M4 9h12l2 2h2v3h-6l-1 4h-3l1-4H4z"/><path d="M8 9V7"/></svg>
+      </div>
+      <div class="btn small" id="menu" aria-label="Меню">
+        <svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+      </div>
+      <div class="btn small" id="enter" aria-label="Ввод">
+        <svg viewBox="0 0 24 24"><path d="M19 5v7a3 3 0 0 1-3 3H6"/><path d="M10 11l-4 4 4 4"/></svg>
+      </div>
+      <div class="btn small" id="yes" aria-label="Да">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+      </div>
+      <div class="btn small" id="music" aria-label="Музыка">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
+      </div>
+      <div class="btn small" id="quit" aria-label="Выйти">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </div>
+    </div>
+
+    <div id="banner" hidden></div>
+
+    <div id="start">
+      <h1>Секретный уровень</h1>
+      <p>Freedoom прямо в Questa. Держите телефон боком. Слева джойстик, справа огонь и двери.
+        Скачается около 13 МБ, музыка подгружается по ходу игры. Лучше по Wi‑Fi.</p>
+      <p id="reward">Пройдите все 4 эпизода и получите 1000 QP. Один раз на аккаунт.</p>
+      <button id="play">Играть</button>
+      <div id="status"></div>
+      <p><button id="back" style="background:none;padding:6px;font-size:15px;color:#9A93B8">Вернуться в Questa</button></p>
+      <a href="https://github.com/cloudflare/doom-wasm" target="_blank" rel="noopener">Движок: Chocolate Doom (GPL-2.0)</a>
+      <a href="https://freedoom.github.io" target="_blank" rel="noopener">Уровни: Freedoom (BSD)</a>
+    </div>
+  </div>
+
+  <script>
+    // Настройки движка: клавиши — коды DOS, как в исходном default.cfg.
+    // W/S — вперёд/назад, O/P — повороты, A/D — шаг вбок, пробел — огонь,
+    // E — открыть, Shift — бег.
+    const CONFIG = [
+      'use_libsamplerate 0', 'aspect_ratio_correct 0', 'force_software_renderer 0', 'startup_delay 0',
+      'show_diskicon 0', 'grabmouse 0', 'fullscreen 0', 'sfx_volume 8', 'music_volume 8', 'show_messages 1',
+      'key_right 25', 'key_left 24', 'key_up 17', 'key_down 31', 'key_strafeleft 30', 'key_straferight 32',
+      'key_fire 57', 'key_use 18', 'key_strafe 46', 'key_speed 42', 'use_mouse 0', 'use_joystick 0',
+      'screenblocks 10', 'detaillevel 0', 'snd_channels 8', 'snd_musicdevice 8', 'snd_sfxdevice 3', 'usegamma 1',
+    ].join('\n') + '\n'
+
+    const KEYS = {
+      up: ['w', 'KeyW', 87], down: ['s', 'KeyS', 83], left: ['o', 'KeyO', 79], right: ['p', 'KeyP', 80],
+      fire: [' ', 'Space', 32], use: ['e', 'KeyE', 69], run: ['Shift', 'ShiftLeft', 16],
+      menu: ['Escape', 'Escape', 27], enter: ['Enter', 'Enter', 13], yes: ['y', 'KeyY', 89],
+      arrowUp: ['ArrowUp', 'ArrowUp', 38], arrowDown: ['ArrowDown', 'ArrowDown', 40],
+    }
+
+    function send (type, name) {
+      const [key, code, keyCode] = KEYS[name] ?? [name, 'Digit' + name, 48 + Number(name)]
+      const event = new KeyboardEvent(type, { key, code, bubbles: true, cancelable: true })
+      // keyCode и which в описании события не задать: Safari их игнорирует.
+      Object.defineProperty(event, 'keyCode', { get: () => keyCode })
+      Object.defineProperty(event, 'which', { get: () => keyCode })
+      window.dispatchEvent(event)
+    }
+
+    const held = new Set()
+    function hold (name, on) {
+      if (on === held.has(name)) return
+      if (on) held.add(name); else held.delete(name)
+      send(on ? 'keydown' : 'keyup', name)
+    }
+    function press (name) {
+      send('keydown', name)
+      setTimeout(() => send('keyup', name), 90)
+    }
+
+    // ── кнопки ──
+    function button (id, down, up) {
+      const el = document.getElementById(id)
+      el.addEventListener('touchstart', (e) => { e.preventDefault(); el.classList.add('on'); down() }, { passive: false })
+      const end = (e) => { e.preventDefault(); el.classList.remove('on'); if (up) up() }
+      el.addEventListener('touchend', end, { passive: false })
+      el.addEventListener('touchcancel', end, { passive: false })
+      el.addEventListener('mousedown', () => { el.classList.add('on'); down() })
+      el.addEventListener('mouseup', () => { el.classList.remove('on'); if (up) up() })
+    }
+    button('fire', () => hold('fire', true), () => hold('fire', false))
+    button('use', () => hold('use', true), () => hold('use', false))
+    let weapon = 1
+    button('weapon', () => { weapon = weapon % 7 + 1; press(String(weapon)) })
+    // В меню нужны стрелки: «Меню» открывает его, джойстик листает (см. ниже).
+    button('menu', () => press('menu'))
+    button('enter', () => press('enter'))
+    button('yes', () => press('yes'))
+    button('quit', () => leave())
+
+    // ── джойстик ──
+    const stick = document.getElementById('stick')
+    const knob = document.getElementById('knob')
+    let stickTouch = null
+    let lastMenuMove = 0
+    // Телефон вертикально — сцена повёрнута на 90° по часовой: «вправо» на
+    // сцене — это «вниз» на экране, «вверх» на сцене — «вправо» на экране.
+    const rotated = () => matchMedia('(orientation: portrait)').matches
+
+    function moveStick (x, y) {
+      const box = stick.getBoundingClientRect()
+      let dx = x - (box.left + box.width / 2)
+      let dy = y - (box.top + box.height / 2)
+      if (rotated()) [dx, dy] = [dy, -dx]
+      const radius = 60
+      const length = Math.hypot(dx, dy)
+      const k = length > radius ? radius / length : 1
+      knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`
+      const dead = 16
+      hold('up', dy < -dead)
+      hold('down', dy > dead)
+      hold('left', dx < -dead * 1.4)
+      hold('right', dx > dead * 1.4)
+      hold('run', length > radius * 0.85)
+      // Стрелки для меню: шаг не чаще раза в 300 мс.
+      const now = Date.now()
+      if (Math.abs(dy) > 40 && now - lastMenuMove > 300) {
+        lastMenuMove = now
+        press(dy < 0 ? 'arrowUp' : 'arrowDown')
+      }
+    }
+    function releaseStick () {
+      stickTouch = null
+      knob.style.transform = ''
+      for (const name of ['up', 'down', 'left', 'right', 'run']) hold(name, false)
+    }
+    stick.addEventListener('touchstart', (e) => {
+      e.preventDefault()
+      const t = e.changedTouches[0]
+      stickTouch = t.identifier
+      moveStick(t.clientX, t.clientY)
+    }, { passive: false })
+    stick.addEventListener('touchmove', (e) => {
+      e.preventDefault()
+      for (const t of e.changedTouches) if (t.identifier === stickTouch) moveStick(t.clientX, t.clientY)
+    }, { passive: false })
+    const stickEnd = (e) => {
+      e.preventDefault()
+      for (const t of e.changedTouches) if (t.identifier === stickTouch) releaseStick()
+    }
+    stick.addEventListener('touchend', stickEnd, { passive: false })
+    stick.addEventListener('touchcancel', stickEnd, { passive: false })
+
+    // ── выход ──
+    function leave () {
+      // Открыта слоем поверх приложения (src/components/DoomOverlay.tsx) —
+      // просим его закрыться; открыта сама по себе — назад в Настройки.
+      music.pause()
+      if (window.parent !== window) window.parent.postMessage('doom:close', location.origin)
+      else location.href = '../#/settings'
+    }
+    document.getElementById('back').addEventListener('click', leave)
+
+    // ── музыка ──
+    //
+    // В этой сборке движка нет синтезатора MIDI, и своя музыка Freedoom
+    // молчит. Поэтому мелодии заранее переведены в mp3 (music/, FluidSynth
+    // со звуковым банком FluidR3, лицензия MIT; сама музыка Freedoom под
+    // BSD: E1M1–E1M9, межуровневая, победная) и
+    // играют здесь, обычным плеером. Какая сейчас нужна, говорит сам движок:
+    // в его «музыкальном пакете» (music-packs, по SHA1 мелодии в WAD) на
+    // каждую мелодию стоит пустой файл, и когда уровень начинается, движок
+    // открывает файл своей мелодии. Открытие мы и ловим (FS.open ниже).
+    // Скачивается только та мелодия, до которой дошла игра.
+    const SONGS = {"2150d45faf4039a23b40326dfc1ec09380fd5088": "e1m1", "16ef31a39c7071b514ee2d209ba6d45727502181": "e1m2", "e80984d57f12877732e1e96d84499483d40256f4": "e1m3", "fdea6632fc2e1ea6667640600cb2534e96cf006a": "e1m4", "6a0a1aa9e5b7fbf7381b84a62f4126b48eeda1dd": "e1m5", "0eb0d63cbcd865349f134b895cb350ff0ba19fee": "e1m6", "6d64a33ddff89854bd93df0e58d1760ceb1af4c6": "e1m7", "f281066ba7b091fdc621787fa4d04df4c3dd1fa4": "e1m8", "ede4045b3c37861ec7717ea329c78f9ef2b3118e": "e1m9", "679a20445cb4d77a6a9610727682fe483665d497": "inter", "342e4f0560f50bdc70ca02ff3e091592755ac394": "introa", "24b22666b560b7cf3f3dee9d0ea285c750704cc5": "victor", "a02450ab1079b79ac411bab1d1314d3b4a999a17": "e2m1", "4c935d6c769ff76995fc3f1b33dd3afaed0d9e4b": "e2m2", "3465f6bf82a5548fc04572d675531d45a7dfcf82": "e2m3", "18b63a4a1cf9e88521b82f7d07bb12e9f54d468c": "e2m4", "0f2faaf0cfe121421895d438636404c272fe4795": "e2m5", "f72e81b8bb952a604dfb710e651bfacddb185c18": "e2m6", "ef76355d1eca01080f442fa9c7226d5c06a6e87b": "e2m7", "e31b11a61a64ad97b813e1762d402ea04a10b661": "e2m8", "cf294f7da7e4135542f6b4c203fab8a52ebe0650": "e2m9", "9e5def542242cb641eb018d1fa4b4e949806c079": "e3m1", "508f19cd251372c01f980e114fcf9a4f896c295f": "e3m2", "6e9089c1f0930360041fe8eced0bfa22504eeb4c": "e3m3", "c269fa44f6a908ef91d3ab0d914d435528fbb30e": "e3m4", "da72af63c35033bc69afe45a3f8be3eb97c8ed81": "e3m5", "df1e71eca262a8549c1c3be7c1cebfebcb3b9426": "e3m6", "e13d89e3e119ca4f509a18c501f10d7aa57c4fe4": "e3m7", "0054a8a979b1512ceb7e0904492e4179f36f2c2a": "e3m8", "95a94eb0c2ff1301c62eb837fb3f37f1001faab7": "e3m9", "fc34e03ecc92a8c2527e78dcf3c63ee528a0aaff": "e4m1", "b30197ccf27b9fde6c129162a45106d81ffc5716": "e4m2", "d9aee65b4d461c368befc8d42753425335dfa233": "e4m3", "2d88812b7bf7c003ed593c153c1f143cb3cc0809": "e4m4", "06863bac925f1a507f74b7ff5e935d6b2cc68b99": "e4m5", "7e11eff0b0e191fd6aadac8d5e48685631f7c0c0": "e4m6", "815e753b150f3e2e20e936579c06bb7b7529b82e": "e4m7", "d0892fd4e2e8a33c60323943637159144d259a28": "e4m8", "5725726a65abb4a7b5cd511af742bb5dc1a4ec1f": "e4m9", "b0b9ebb2bc0c711bf4cdd643585a09b3190594b1": "bunny"}
+    const RECORDED = ['e1m1', 'e1m2', 'e1m3', 'e1m4', 'e1m5', 'e1m6', 'e1m7', 'e1m8', 'e1m9', 'inter', 'victor']
+    // Мелодий других эпизодов нет в записи: играем ту же по номеру карты.
+    function recorded (name) {
+      if (RECORDED.includes(name)) return name
+      const map = name.match(/^e\dm(\d)$/)
+      if (map) return 'e1m' + map[1]
+      if (name === 'bunny') return 'victor'
+      if (name.startsWith('intro')) return 'inter'
+      return null
+    }
+
+    const music = new Audio()
+    music.loop = true
+    music.volume = 0.55
+    let musicOn = true
+    try { musicOn = localStorage.getItem('questa.doom.music') !== '0' } catch (e) {}
+    let song = null
+    let waiting = false
+    const musicButton = document.getElementById('music')
+    musicButton.classList.toggle('off', !musicOn)
+
+    // Финал эпизода: после его последней карты (e?m8) движок включает
+    // победную мелодию. Тогда эпизод пройден — сообщаем приложению (078:
+    // все четыре — 1000 QP один раз), оно отвечает итогом (doom:progress).
+    let lastLevel = null
+    function noticeEpisode (name) {
+      const boss = lastLevel && lastLevel.match(/^e(\d)m8$/)
+      if (name === 'victor' && boss) {
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'doom:episode', episode: Number(boss[1]) }, location.origin)
+        } else {
+          showBanner('Эпизод пройден! Чтобы засчитать, играйте из приложения Questa')
+        }
+      }
+      if (/^e\dm\d$/.test(name)) lastLevel = name
+    }
+
+    const banner = document.getElementById('banner')
+    let bannerTimer = 0
+    function showBanner (text) {
+      banner.textContent = text
+      banner.hidden = false
+      clearTimeout(bannerTimer)
+      bannerTimer = setTimeout(() => { banner.hidden = true }, 7000)
+    }
+    window.addEventListener('message', (event) => {
+      if (event.origin !== location.origin || event.data?.type !== 'doom:progress') return
+      const p = event.data
+      if (p.failed) showBanner('Эпизод пройден, но засчитать не вышло: нет связи')
+      else if (p.awarded > 0) showBanner('Вся игра пройдена! +' + p.awarded + ' QP')
+      else if (p.done >= p.total) showBanner('Эпизод пройден! Награда за игру уже получена')
+      else showBanner('Эпизод пройден: ' + p.done + ' из ' + p.total + '. За все четыре — 1000 QP')
+    })
+
+    function playSong (name) {
+      noticeEpisode(name)
+      const file = recorded(name)
+      if (!file) return
+      if (file !== song) {
+        song = file
+        music.src = 'music/' + file + '.mp3'
+      } else {
+        music.currentTime = 0
+      }
+      if (musicOn) music.play().catch(() => { waiting = true })
+    }
+    // iPhone пускает звук только от касания: не вышло сразу — со следующего.
+    document.addEventListener('touchstart', () => {
+      if (waiting && musicOn) { waiting = false; music.play().catch(() => {}) }
+    }, { passive: true })
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) music.pause()
+      else if (musicOn && song) music.play().catch(() => { waiting = true })
+    })
+    button('music', () => {
+      musicOn = !musicOn
+      musicButton.classList.toggle('off', !musicOn)
+      try { localStorage.setItem('questa.doom.music', musicOn ? '1' : '0') } catch (e) {}
+      if (musicOn && song) music.play().catch(() => {})
+      else music.pause()
+    })
+
+    function musicPack (FS) {
+      const dir = '/libsdl/doom-ws-wasm/music-packs'
+      FS.mkdirTree(dir)
+      FS.writeFile(dir + '/questa.cfg', Object.entries(SONGS).map(([sha, name]) => sha + ' = ' + name + '.ogg').join('\n') + '\n')
+      for (const name of Object.values(SONGS)) FS.writeFile(dir + '/' + name + '.ogg', '')
+      const open = FS.open
+      FS.open = function (path) {
+        const hit = typeof path === 'string' && path.match(/music-packs\/(\w+)\.ogg$/)
+        if (hit) playSong(hit[1])
+        return open.apply(this, arguments)
+      }
+    }
+
+    // ── загрузка ──
+    const status = document.getElementById('status')
+
+    async function loadWad () {
+      const response = await fetch('freedoom1.wad.gz')
+      if (!response.ok) throw new Error('уровни не скачались (' + response.status + ')')
+      const total = Number(response.headers.get('content-length')) || 10278537
+      const reader = response.body.getReader()
+      const parts = []
+      let got = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        parts.push(value)
+        got += value.length
+        status.textContent = 'Скачиваем уровни: ' + Math.min(99, Math.round(got / total * 100)) + '%'
+      }
+      status.textContent = 'Распаковываем…'
+      const packed = new Blob(parts)
+      const unpacked = packed.stream().pipeThrough(new DecompressionStream('gzip'))
+      return new Uint8Array(await new Response(unpacked).arrayBuffer())
+    }
+
+    document.getElementById('play').addEventListener('click', async () => {
+      const play = document.getElementById('play')
+      play.disabled = true
+      // Звук открывается только от нажатия: будим его сейчас. На iPhone
+      // ещё и «воспроизведение»: иначе с беззвучным режимом молчат эффекты.
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback' } catch (e) {}
+      try { new (window.AudioContext || window.webkitAudioContext)().resume() } catch (e) {}
+      // Плеер музыки тоже: первая мелодия — E1M1, с неё игра начинается.
+      song = 'e1m1'
+      music.src = 'music/e1m1.mp3'
+      music.muted = true
+      music.play().then(() => { music.pause(); music.muted = false }).catch(() => { music.muted = false })
+      try {
+        if (!('DecompressionStream' in window)) throw new Error('браузер слишком старый для игры')
+        const wad = await loadWad()
+        status.textContent = 'Запускаем…'
+        window.Module = {
+          noInitialRun: true,
+          canvas: document.getElementById('canvas'),
+          preRun: [() => {
+            window.Module.FS.writeFile('/freedoom1.wad', wad)
+            window.Module.FS.writeFile('/default.cfg', CONFIG)
+            musicPack(window.Module.FS)
+          }],
+          onRuntimeInitialized: () => {
+            document.getElementById('start').style.display = 'none'
+            document.getElementById('hud').hidden = false
+            // Сразу на первый уровень, средняя сложность: без заставки и меню.
+            window.callMain(['-iwad', 'freedoom1.wad', '-window', '-nogui', '-config', 'default.cfg',
+              '-skill', '2', '-warp', '1', '1'])
+          },
+          print: () => {},
+          printErr: () => {},
+          setStatus: () => {},
+        }
+        const script = document.createElement('script')
+        script.src = 'doom.js'
+        script.onerror = () => { status.textContent = 'Не скачался движок игры, попробуйте ещё раз'; play.disabled = false }
+        document.body.appendChild(script)
+      } catch (cause) {
+        status.textContent = 'Не получилось: ' + (cause && cause.message ? cause.message : cause)
+        play.disabled = false
+      }
+    })
+  </script>
+</body>
+</html>
