@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#271B56" />
+    <meta name="description" content="Questa: соберите компанию рядом, а ИИ придумает задания под вашу тему: вылазка, снимок и квиз." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Не black-translucent: в этом режиме приложение рисуется во весь экран,
+         но высота окна приходит на статус-бар меньше — и внизу оставалась
+         полоса чужого фона, до которой странице не дотянуться. С black окно
+         начинается под статус-баром и совпадает с видимой областью.
+         Не black, а default: с ним iOS красит полосу в theme-color, и она
+         сливается с верхом приложения; black — всегда чёрная. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Questa" />
+    <!-- Тема — до первой отрисовки: иначе при светлой теме мелькал бы тёмный
+         экран. Та же логика, что в src/lib/theme.ts (выбор в Настройках,
+         по умолчанию — тёмная). -->
+    <script>
+      (function () {
+        var choice = null
+        try { choice = localStorage.getItem('questa.theme') } catch (e) {}
+        var light = choice === 'light' || (choice === 'system'
+          && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+        if (!light) return
+        document.documentElement.setAttribute('data-theme', 'light')
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#EFEDF5')
+      })()
+    </script>
+    <!-- Логотип заставки просят заранее: он появляется первым, и ждать
+         его разбора страницей нельзя. -->
+    <link rel="preload" as="image" href="./art/logo.webp" fetchpriority="high" />
+    <link rel="icon" type="image/png" href="./icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Questa: встречи, которые становятся квестом</title>
+    <!--
+      Предпросмотр ссылки в Telegram, WhatsApp, VK и прочих. Мессенджер
+      не видит часть адреса после «#», поэтому любая ссылка на приложение
+      показывает эту карточку. Адреса — полные: относительные мессенджеры
+      не понимают. Картинка квадратная (public/og-square.jpg, талисман):
+      Telegram показывает обычные сайты маленьким квадратиком сбоку и
+      вырезал из широкой обложки середину с обрывками надписи. Широкая
+      обложка (public/og.jpg, исходник docs/og-image.html) лежит рядом —
+      если понадобится. Обе меньше 300 КБ: больше WhatsApp не показывает.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Questa" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://questa-app.me/" />
+    <meta property="og:title" content="Questa: встречи, которые становятся квестом" />
+    <meta property="og:description" content="Соберите компанию рядом, а ИИ придумает задания под вашу тему: вылазка, снимок и квиз. Присоединяйтесь!" />
+    <meta property="og:image" content="https://questa-app.me/og-square.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="1200" />
+    <meta property="og:image:alt" content="Questa: встречи, которые становятся квестом" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Questa: встречи, которые становятся квестом" />
+    <meta name="twitter:description" content="Соберите компанию рядом, а ИИ придумает задания под вашу тему." />
+    <meta name="twitter:image" content="https://questa-app.me/og-square.jpg" />
+    <script type="module" crossorigin src="/assets/main-DJwno7cJ.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/theme-BP_F4fuQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/src-DF9VHEhh.js">
+    <link rel="modulepreload" crossorigin href="/assets/icons-DP1v5sdt.js">
+    <link rel="modulepreload" crossorigin href="/assets/useOnline-C_YHpDgq.js">
+    <link rel="modulepreload" crossorigin href="/assets/api-CpQI4end.js">
+    <link rel="modulepreload" crossorigin href="/assets/sound-BD7ZV156.js">
+    <link rel="modulepreload" crossorigin href="/assets/Toast-CxLaQWxZ.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth-DHKleaoV.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-LedRZR38.js">
+    <link rel="modulepreload" crossorigin href="/assets/useAsync-DM67oOsQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/SheetShell-BPm5NIck.js">
+    <link rel="modulepreload" crossorigin href="/assets/share-card-CRRAfVhW.js">
+    <link rel="modulepreload" crossorigin href="/assets/Art-Dzsi3Jod.js">
+    <link rel="modulepreload" crossorigin href="/assets/pinch-Drct-QsE.js">
+    <link rel="stylesheet" crossorigin href="/assets/src-BbuhFTz4.css">
+  </head>
+  <body>
+    <!--
+      Заставка до кода. Браузер показывает её сразу, а React заменяет
+      собой, когда приложение собралось: иначе первые полсекунды человек
+      видит пустой тёмный прямоугольник и думает, что ничего не грузится.
+    -->
+    <style>#boot{background:#0f082c;grid-auto-flow:row;place-items:center;gap:28px;display:grid;position:fixed;inset:0}#boot img{border-radius:26px;width:80px;height:80px;animation:2.4s ease-in-out infinite boot-breathe}#boot .ring{border:2px solid #8769ff;border-color:#8769ff #8769ff59 #0000 #0000;border-radius:999px;width:112px;height:112px;animation:1.6s linear infinite boot-spin;position:absolute}#boot .name{color:#fff;letter-spacing:-.02em;font:800 30px/1 -apple-system,system-ui,sans-serif}html[data-theme=light] #boot{background:#efedf5}html[data-theme=light] #boot .name{color:#1c1438}html[data-theme=light] #boot .ring{border-top-color:#6e4ff6;border-right-color:#6e4ff64d}@keyframes boot-breathe{0%,to{transform:scale(1)}50%{transform:scale(1.05)}}@keyframes boot-spin{to{transform:rotate(1turn)}}</style>
+    <div id="boot">
+      <span style="position:relative;display:grid;place-items:center;width:112px;height:112px">
+        <span class="ring"></span>
+        <img src="./art/logo.webp" alt="" fetchpriority="high" />
+      </span>
+      <span class="name">Questa</span>
+    </div>
+
+    <div id="root"></div>
+    <!--
+      Телефон повернули боком — просим вернуть. Приложение нарисовано под
+      вертикальный экран, и боком половина его уезжала за край. Закрепить
+      положение на iPhone нельзя (iOS не даёт этого приложениям с домашнего
+      экрана), поэтому поверх всего встаёт эта заглушка — только на
+      телефоне и только боком (см. #rotate в index.css).
+    -->
+    <div id="rotate" aria-live="polite">
+      <div>
+        <div class="rotate-phone"></div>
+        <p>Поверните телефон вертикально</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "me.questaapp.app",
+      "sha256_cert_fingerprints": [
+        "0B:B3:C4:6B:09:DE:60:52:26:FE:57:F3:2B:8E:0B:2E:DF:66:4A:FA:BE:F1:26:D7:F1:F2:3B:BF:A5:76:B3:12"
+      ]
+    }
+  }
+]

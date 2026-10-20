@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!--
+  Открытая страница о приложении — без входа.
+
+  Само приложение (index.html) сразу ведёт на экран входа, и Google при
+  проверке приложения для кнопки «Войти через Google» отказывал: «главная
+  страница закрыта входом» и «название на главной не совпадает с Questa».
+  Эту страницу и указываем в Google как домашнюю: на ней название, что
+  умеет приложение, зачем ему вход через Google и ссылки на политику и
+  условия. Английский — первым: проверяющие Google читают по-английски,
+  и с русским текстом наверху Google отвечал «страница не объясняет, что
+  делает приложение».
+-->
+<title>Questa</title>
+<meta name="description" content="Questa is a mobile app for small in-person meetups: find or create a meetup nearby, and an AI turns it into a short quest of three tasks for the group." />
+<link rel="icon" type="image/png" href="./icon-192.png" />
+<meta property="og:title" content="Questa" />
+<meta property="og:description" content="Соберите компанию рядом, а ИИ придумает задания под вашу тему: вылазка, снимок и квиз." />
+<meta property="og:image" content="https://questa-app.me/og-square.jpg" />
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 28px 20px 64px;
+    background: #0F0A24; color: #ECE9FB;
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 16px; margin: 8px 0 20px; }
+  header img { width: 64px; height: 64px; border-radius: 18px; }
+  h1 { font-size: 34px; line-height: 1.1; margin: 0; }
+  .tagline { margin: 2px 0 0; color: #9A93BE; font-size: 16px; }
+  h2 { font-size: 20px; margin: 32px 0 10px; }
+  p, li { color: #D6D0F0; }
+  a { color: #A78BFA; }
+  .muted { color: #9A93BE; font-size: 15px; }
+  .box {
+    background: #1A1338; border: 1px solid #2E2557; border-radius: 18px;
+    padding: 16px 18px; margin: 20px 0;
+  }
+  .open {
+    display: block; text-align: center; text-decoration: none;
+    background: #8769FF; color: #fff; font-weight: 600;
+    border-radius: 16px; padding: 15px 18px; margin: 24px 0 8px;
+  }
+  ol, ul { padding-left: 22px; }
+  code { font-size: 15px; color: #C9BEFF; }
+  li { margin: 6px 0; }
+  footer { margin-top: 40px; border-top: 1px solid #2E2557; padding-top: 16px; }
+  footer a { margin-right: 16px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <img src="./icon-192.png" width="64" height="64" alt="Questa app icon" />
+  <div>
+    <h1>Questa</h1>
+    <p class="tagline">Meetups that become a quest</p>
+  </div>
+</header>
+
+<p><strong>Questa</strong> is a free mobile app for small in-person meetups. You find a
+meetup near you or create your own (a run, board games, a movie night, a walk around
+the city), and at the meetup an AI turns it into a short quest of three tasks for the
+group: walk to a spot, take a group photo, answer a quiz about the meetup's theme.</p>
+
+<p>You do not need an account to read this page. The app itself asks you to sign in,
+so that meetups and chats belong to real people.</p>
+
+<a class="open" href="./">Open Questa</a>
+<p class="muted" style="text-align:center">Works in the phone's browser and can be added to the home screen.</p>
+
+<h2>What you can do in Questa</h2>
+<ol>
+  <li><strong>Find a meetup nearby</strong>: on a map or in a feed filtered by city and interests.</li>
+  <li><strong>Create your own meetup</strong>: title, place, time and how many people to invite.</li>
+  <li><strong>Chat with the group</strong> before and after the meetup; the chat is visible only to its participants.</li>
+  <li><strong>Play the quest at the meetup</strong>: three short tasks generated for that meetup's theme.</li>
+  <li><strong>Earn QuestaPoints</strong> for completed tasks and spend them on profile decorations.</li>
+  <li><strong>Stay safe</strong>: rate participants, report or block people, delete your account at any time.</li>
+</ol>
+
+<h2>Sign in with Google</h2>
+<div class="box">
+  <p>Questa offers sign-in with email and password, with Google, or with Yandex ID.
+  With Google, Questa requests only the basic <code>openid</code>, <code>email</code>
+  and <code>profile</code> scopes and uses your <strong>email address</strong>,
+  <strong>name</strong> and <strong>profile picture</strong> only to create your Questa
+  account, recognise you on the next sign-in and pre-fill your profile.</p>
+  <p>Questa does not access your Gmail, contacts, Drive, Calendar or any other Google
+  service. Google user data is never sold, never shared with third parties, never used
+  for advertising and never sent to AI models. Questa's use and transfer of information
+  received from Google APIs adheres to the
+  <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API
+  Services User Data Policy</a>, including the Limited Use requirements.
+  Details: <a href="./privacy.html#en">Privacy Policy</a>.</p>
+</div>
+
+<h2>How Questa uses AI</h2>
+<p>Language models only write the <strong>text</strong> of quest tasks (from the
+meetup's title, description, place and time) and check whether a photo submitted for
+a photo task matches the task. Questa does <strong>not</strong> generate or edit images
+of people or of anything else, and never produces sexual or intimate content.
+No Google account data is sent to AI models.</p>
+
+<h2>Who makes Questa</h2>
+<p>Questa is a non-commercial student project created as part of a master's thesis.
+It has no ads and no paid features. Questions, suggestions and complaints:
+<a href="mailto:help@questapp.ru">help@questapp.ru</a>.</p>
+
+<p><a href="./privacy.html#en">Privacy Policy</a> ·
+<a href="./terms.html#en">Terms of Service</a></p>
+
+<section id="ru" lang="ru">
+<h2>Questa по-русски</h2>
+<p>Questa: бесплатное мобильное приложение для небольших встреч. Найдите встречу
+неподалёку или создайте свою (пробежка, настолки, кино, прогулка), а на встрече
+искусственный интеллект превратит её в короткий квест из трёх заданий под тему
+встречи: дойти до точки, сделать общий снимок, пройти квиз.</p>
+<ol>
+  <li><strong>Найдите встречу рядом</strong>: на карте или в ленте, по интересам и городу.</li>
+  <li><strong>Или создайте свою</strong>: название, место, время и сколько человек позвать.</li>
+  <li><strong>На встрече откройте квест</strong>: дойти до точки, сделать общий снимок, пройти квиз.</li>
+  <li><strong>Получайте очки QuestaPoints</strong> и тратьте их в магазине на оформление профиля.</li>
+</ol>
+<p><strong>Вход через Google.</strong> Войти можно по почте с паролем, через Google
+или через Яндекс ID. При входе через Google приложение получает только адрес почты,
+имя и фотографию профиля, чтобы завести аккаунт и подставить имя на экране
+знакомства. Questa не читает вашу почту, контакты или файлы, не публикует ничего от
+вашего имени, не передаёт эти данные третьим лицам и моделям ИИ.</p>
+<p><strong>ИИ в Questa</strong> пишет только текст заданий и проверяет, подходит ли
+снимок к фото-заданию. Questa не создаёт и не изменяет изображения и не генерирует
+откровенного или интимного содержимого.</p>
+<p><strong>Кто делает.</strong> Учебный проект, созданный в рамках магистерской
+работы. Связь: <a href="mailto:help@questapp.ru">help@questapp.ru</a>.</p>
+<a class="open" href="./">Открыть приложение</a>
+</section>
+
+<footer>
+  <a href="./privacy.html">Privacy Policy</a>
+  <a href="./terms.html">Terms of Service</a>
+  <a href="./">Open Questa</a>
+</footer>
+
+</main>
+</body>
+</html>

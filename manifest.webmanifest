@@ -1,0 +1,16 @@
+{
+  "name": "Questa",
+  "short_name": "Questa",
+  "description": "Микро-ивенты рядом: собрать компанию и превратить встречу в квест",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F082C",
+  "theme_color": "#271B56",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

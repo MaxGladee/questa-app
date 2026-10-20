@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Questa — карта</title>
+    <!--
+      Карта для Android-приложения (mobile/). Приложение показывает эту
+      страницу внутри себя и управляет картой командами (src/map-frame.ts):
+      та же карта Яндекса и те же метки, что в браузерной версии. Живёт на
+      questa-app.me потому, что ключ Яндекс Карт принимается только отсюда.
+    -->
+    <script>
+      if (/[?&]theme=light/.test(location.search)) document.documentElement.setAttribute('data-theme', 'light')
+    </script>
+    <style>html,body{height:100%;margin:0;overflow:hidden}#map{position:fixed;inset:0}</style>
+    <script type="module" crossorigin src="/assets/map-frame-5o9_w8tz.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/src-DF9VHEhh.js">
+    <link rel="modulepreload" crossorigin href="/assets/theme-BP_F4fuQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/mapview-blRJyy08.js">
+    <link rel="stylesheet" crossorigin href="/assets/src-BbuhFTz4.css">
+    <link rel="stylesheet" crossorigin href="/assets/mapview-vh-t_kPv.css">
+  </head>
+  <body>
+    <div id="map"></div>
+  </body>
+</html>
