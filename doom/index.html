@@ -142,6 +142,20 @@
   </div>
 
   <script>
+    // Звуковые контексты движка — запоминаем, чтобы будить их по касанию
+    // (unlockAudio ниже). Ставится до загрузки движка.
+    const audioContexts = []
+    {
+      const Native = window.AudioContext || window.webkitAudioContext
+      if (Native) {
+        class Tracked extends Native {
+          constructor (...args) { super(...args); audioContexts.push(this) }
+        }
+        window.AudioContext = Tracked
+        window.webkitAudioContext = Tracked
+      }
+    }
+
     // Настройки движка: клавиши — коды DOS, как в исходном default.cfg.
     // W/S — вперёд/назад, O/P — повороты, A/D — шаг вбок, пробел — огонь,
     // E — открыть, Shift — бег.
@@ -171,6 +185,9 @@
     }
 
     const held = new Set()
+    // «Бег» нужен и джойстику (до упора), и обзору (быстрый поворот).
+    let stickRun = false
+    let turning = false
     function hold (name, on) {
       if (on === held.has(name)) return
       if (on) held.add(name); else held.delete(name)
@@ -227,7 +244,8 @@
       // было неудобно (владелец, 21 октября 2026).
       hold('strafeLeft', dx < -dead * 1.4)
       hold('strafeRight', dx > dead * 1.4)
-      hold('run', length > radius * 0.85)
+      stickRun = length > radius * 0.85
+      hold('run', stickRun || turning)
       // Стрелки для меню: шаг не чаще раза в 300 мс.
       const now = Date.now()
       if (Math.abs(dy) > 40 && now - lastMenuMove > 300) {
@@ -238,7 +256,9 @@
     function releaseStick () {
       stickTouch = null
       knob.style.transform = ''
-      for (const name of ['up', 'down', 'strafeLeft', 'strafeRight', 'run']) hold(name, false)
+      stickRun = false
+      for (const name of ['up', 'down', 'strafeLeft', 'strafeRight']) hold(name, false)
+      hold('run', turning)
     }
     stick.addEventListener('touchstart', (e) => {
       e.preventDefault()
@@ -264,7 +284,9 @@
     // держится, пока запас не потрачен: провели дальше — повернулись больше,
     // держите палец на месте — камера стоит.
     const look = document.getElementById('look')
-    const MS_PER_PX = 5
+    // Владелец: поворот медленный. Больше поворота на пиксель, и пока
+    // камера крутится, зажат «бег»: в Doom с ним поворот вдвое быстрее.
+    const MS_PER_PX = 10
     let lookTouch = null
     let lookX = 0
     let budget = 0
@@ -281,7 +303,7 @@
         if (t.identifier !== lookTouch) continue
         // Сцена повёрнута: «вправо» на ней — «вниз» на экране.
         const x = rotated() ? t.clientY : t.clientX
-        budget = Math.max(-600, Math.min(600, budget + (x - lookX) * MS_PER_PX))
+        budget = Math.max(-700, Math.min(700, budget + (x - lookX) * MS_PER_PX))
         lookX = x
       }
     }, { passive: false })
@@ -293,18 +315,24 @@
     look.addEventListener('touchcancel', lookEnd, { passive: false })
     setInterval(() => {
       const step = 16
-      if (budget > step / 2) { hold('left', false); hold('right', true); budget -= step }
-      else if (budget < -step / 2) { hold('right', false); hold('left', true); budget += step }
-      else { hold('left', false); hold('right', false); budget = 0 }
+      if (budget > step / 2) { hold('left', false); hold('right', true); budget -= step; turning = true }
+      else if (budget < -step / 2) { hold('right', false); hold('left', true); budget += step; turning = true }
+      else { hold('left', false); hold('right', false); budget = 0; turning = false }
+      hold('run', turning || stickRun)
     }, 16)
 
     // ── выход ──
+    // Как открыли (src/components/DoomOverlay.tsx, openDoom): куда вернуться
+    // и как засчитать эпизод — адрес базы, ключ, вход человека.
+    let launch = {}
+    try { launch = JSON.parse(sessionStorage.getItem('questa.doom') || '{}') } catch (e) {}
+
     function leave () {
-      // Открыта слоем поверх приложения (src/components/DoomOverlay.tsx) —
-      // просим его закрыться; открыта сама по себе — назад в Настройки.
+      // Обратно в приложение, на экран, откуда пришли: оно откроется заново.
+      // Раньше игра была слоем поверх, и после выхода на iPhone приложение
+      // переставало отвечать на нажатия.
       music.pause()
-      if (window.parent !== window) window.parent.postMessage('doom:close', location.origin)
-      else location.href = '../#/settings'
+      location.replace('../#' + (launch.back || '/settings'))
     }
     document.getElementById('back').addEventListener('click', leave)
 
@@ -347,13 +375,7 @@
     let lastLevel = null
     function noticeEpisode (name) {
       const boss = lastLevel && lastLevel.match(/^e(\d)m8$/)
-      if (name === 'victor' && boss) {
-        if (window.parent !== window) {
-          window.parent.postMessage({ type: 'doom:episode', episode: Number(boss[1]) }, location.origin)
-        } else {
-          showBanner('Эпизод пройден! Чтобы засчитать, играйте из приложения Questa')
-        }
-      }
+      if (name === 'victor' && boss) void episodeDone(Number(boss[1]))
       if (/^e\dm\d$/.test(name)) lastLevel = name
     }
 
@@ -365,14 +387,33 @@
       clearTimeout(bannerTimer)
       bannerTimer = setTimeout(() => { banner.hidden = true }, 7000)
     }
-    window.addEventListener('message', (event) => {
-      if (event.origin !== location.origin || event.data?.type !== 'doom:progress') return
-      const p = event.data
-      if (p.failed) showBanner('Эпизод пройден, но засчитать не вышло: нет связи')
-      else if (p.awarded > 0) showBanner('Вся игра пройдена! +' + p.awarded + ' QP')
+    // Эпизод засчитывает база (078, doom_episode) — прямо отсюда, входом,
+    // который оставило приложение. Не вышло (вход истёк за долгую игру, нет
+    // связи) — эпизод ждёт в localStorage, приложение дошлёт его само.
+    function showProgress (p) {
+      if (p.awarded > 0) showBanner('Вся игра пройдена! +' + p.awarded + ' QP')
       else if (p.done >= p.total) showBanner('Эпизод пройден! Награда за игру уже получена')
       else showBanner('Эпизод пройден: ' + p.done + ' из ' + p.total + '. За все четыре — 1000 QP')
-    })
+    }
+    async function episodeDone (episode) {
+      try {
+        if (!launch.url || !launch.token) throw new Error('нет входа')
+        const response = await fetch(launch.url + '/rest/v1/rpc/doom_episode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: launch.key, Authorization: 'Bearer ' + launch.token },
+          body: JSON.stringify({ episode_: episode }),
+        })
+        if (!response.ok) throw new Error('база ответила ' + response.status)
+        showProgress(await response.json())
+      } catch (e) {
+        try {
+          const pending = JSON.parse(localStorage.getItem('questa.doom.pending') || '[]')
+          if (!pending.includes(episode)) pending.push(episode)
+          localStorage.setItem('questa.doom.pending', JSON.stringify(pending))
+        } catch (e2) {}
+        showBanner('Эпизод ' + episode + ' пройден! Засчитаем, когда вернётесь в Questa')
+      }
+    }
 
     function playSong (name) {
       noticeEpisode(name)
@@ -386,10 +427,18 @@
       }
       if (musicOn) music.play().catch(() => { waiting = true })
     }
-    // iPhone пускает звук только от касания: не вышло сразу — со следующего.
-    document.addEventListener('touchstart', () => {
-      if (waiting && musicOn) { waiting = false; music.play().catch(() => {}) }
-    }, { passive: true })
+    // iPhone пускает звук только от касания, и засчитывает касание, когда
+    // палец отпустили (touchend), а не когда коснулись. Раньше звук открывала
+    // кнопка «Играть»; без неё выстрелы молчали: движок будил звук на
+    // touchstart, а этого iPhone мало. Теперь на каждом отпускании будим все
+    // звуковые контексты игры (их запоминает обёртка AudioContext ниже) и
+    // музыку.
+    function unlockAudio () {
+      for (const ctx of audioContexts) if (ctx.state !== 'running') ctx.resume().catch(() => {})
+      if (waiting && musicOn) { waiting = false; music.play().catch(() => { waiting = true }) }
+    }
+    document.addEventListener('touchend', unlockAudio, { capture: true, passive: true })
+    document.addEventListener('click', unlockAudio, { capture: true })
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) music.pause()
       else if (musicOn && song) music.play().catch(() => { waiting = true })
