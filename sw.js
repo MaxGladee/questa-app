@@ -6,8 +6,12 @@
 // данные подтягиваются, когда связь вернётся.
 //
 // Три стратегии, и различать их принципиально:
-//   • переходы по страницам и index.html — сначала сеть. Иначе после
-//     очередной выкладки люди неделями сидели бы на старой версии.
+//   • само приложение (index.html) — сразу из кэша, а свежее тянется в
+//     фоне. Раньше было «сначала сеть», и каждый запуск начинался с
+//     ожидания ответа: до него на экране не было ничего. Чтобы люди не
+//     сидели на старой версии, страница сама сверяется с сетью и
+//     перезапускается на новую (src/lib/fresh.ts).
+//   • остальные страницы (.html) — сначала сеть.
 //   • файлы сборки из /assets/ — сначала кэш: в их именах есть хэш
 //     содержимого, оно никогда не меняется, меняется имя.
 //   • всё остальное своё — картинки, иконки, манифест — отдаём из кэша,
@@ -65,6 +69,30 @@ async function fromNetworkFirst (request) {
     if (cached) return cached
     throw failure
   }
+}
+
+/*
+ * Оболочка приложения: из кэша сразу, свежая — в фоне на следующий запуск.
+ * Нет в кэше (первый запуск) — по-старому, из сети.
+ */
+const SHELL = new URL('./index.html', self.registration.scope).href
+
+function isShell (url) {
+  const scope = new URL(self.registration.scope).pathname
+  return url.pathname === scope || url.pathname === scope + 'index.html'
+}
+
+async function fromShell (event) {
+  const cache = await caches.open(CACHE)
+  const cached = await cache.match(SHELL)
+  if (!cached) return fromNetworkFirst(event.request)
+
+  event.waitUntil(
+    fetch(SHELL, { cache: 'no-store' })
+      .then((response) => response.ok ? cache.put(SHELL, response) : undefined)
+      .catch(() => {}),
+  )
+  return cached
 }
 
 async function fromCacheFirst (request) {
@@ -136,6 +164,11 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin !== self.location.origin) {
     if (url.pathname.includes('/storage/v1/object/public/')) event.respondWith(fromMedia(request))
+    return
+  }
+
+  if (request.mode === 'navigate' && isShell(url)) {
+    event.respondWith(fromShell(event))
     return
   }
 
